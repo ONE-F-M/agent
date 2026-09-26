@@ -130,8 +130,15 @@ class Server(Base):
         self._render_template("bench/docker-compose.yml.jinja2", config, docker_compose)
 
         config_directory = os.path.join(bench_directory, "config")
+        # --user $(id -u):1000 - self-hosted builders whose "frappe" system
+        # user isn't UID 1000 (the UID this image's frappe user has) would
+        # otherwise have the container write these bind-mounted files as
+        # UID 1000, unreadable/unwritable by the host's own frappe user
+        # afterwards. Keeping GID 1000 lets the container still read the
+        # image's own /home/frappe tree (group-readable, not world-readable),
+        # while the host UID makes the copied-out files usable on the host.
         command = (
-            "docker run --rm --net none "
+            "docker run --rm --net none --user $(id -u):1000 "
             f"-v {config_directory}:/home/frappe/frappe-bench/configmount "
             f"{config['docker_image']} cp -LR config/. configmount"
         )
@@ -140,7 +147,7 @@ class Server(Base):
         sites_directory = os.path.join(bench_directory, "sites")
         # Copy sites directory from image to host system
         command = (
-            "docker run --rm --net none "
+            "docker run --rm --net none --user $(id -u):1000 "
             f"-v {sites_directory}:/home/frappe/frappe-bench/sitesmount "
             f"{config['docker_image']} cp -LR sites/. sitesmount"
         )
