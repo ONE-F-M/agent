@@ -251,6 +251,14 @@ class Base:
         try:
             shutil.copy2(temp_file.name, self.config_file)
             os.remove(temp_file.name)
+            # tempfile.NamedTemporaryFile creates its backing file mode 600,
+            # owned by whichever UID runs this Python process (the host
+            # agent). copy2 preserves that mode onto the destination, but
+            # this config file is also read/written later by the bench's
+            # own container (a different UID on self-hosted boxes whose
+            # "frappe" system user isn't UID 1000, the image's own). Keep
+            # it universally accessible rather than owner-only.
+            os.chmod(self.config_file, 0o666)
         except Exception as e:
             os.rename(self.config_file + ".bak", self.config_file)
             raise e
