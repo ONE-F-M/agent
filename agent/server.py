@@ -130,26 +130,30 @@ class Server(Base):
         self._render_template("bench/docker-compose.yml.jinja2", config, docker_compose)
 
         config_directory = os.path.join(bench_directory, "config")
-        # --user $(id -u):1000 - self-hosted builders whose "frappe" system
-        # user isn't UID 1000 (the UID this image's frappe user has) would
-        # otherwise have the container write these bind-mounted files as
-        # UID 1000, unreadable/unwritable by the host's own frappe user
-        # afterwards. Keeping GID 1000 lets the container still read the
-        # image's own /home/frappe tree (group-readable, not world-readable),
-        # while the host UID makes the copied-out files usable on the host.
+        # Copy as root and open up the destination afterwards. Both the
+        # host's own agent process and the bench's own long-running
+        # container (started elsewhere with "-u frappe", i.e. this image's
+        # UID 1000) need to read/write these bind-mounted files - but on a
+        # self-hosted box the host's "frappe" system user is rarely UID
+        # 1000 too, so no single owning UID/GID satisfies both. Running as
+        # root sidesteps read permission on the image's own tree, and the
+        # chmod after makes the copied-out files usable regardless of which
+        # UID (host or container) touches them next.
         command = (
-            "docker run --rm --net none --user $(id -u):1000 "
+            "docker run --rm --net none --user root "
             f"-v {config_directory}:/home/frappe/frappe-bench/configmount "
-            f"{config['docker_image']} cp -LR config/. configmount"
+            f"{config['docker_image']} sh -c "
+            "'cp -LR config/. configmount && chmod -R 777 configmount'"
         )
         self.execute(command, directory=bench_directory)
 
         sites_directory = os.path.join(bench_directory, "sites")
         # Copy sites directory from image to host system
         command = (
-            "docker run --rm --net none --user $(id -u):1000 "
+            "docker run --rm --net none --user root "
             f"-v {sites_directory}:/home/frappe/frappe-bench/sitesmount "
-            f"{config['docker_image']} cp -LR sites/. sitesmount"
+            f"{config['docker_image']} sh -c "
+            "'cp -LR sites/. sitesmount && chmod -R 777 sitesmount'"
         )
         return self.execute(command, directory=bench_directory)
 
