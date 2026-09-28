@@ -273,7 +273,13 @@ server {
 {% endfor %}
 
 server {
-	listen 80;
+	# "server_name _;" is only a naming convention, not special to nginx.
+	# Without an explicit default_server, whichever "listen 80" block loads
+	# first (e.g. a bench's own nginx config, alphabetically before this one
+	# under /etc/nginx/conf.d/*.conf) silently wins the fallback for any host
+	# nothing else matches - which broke ACME validation for every domain
+	# not already known to a bench-specific config.
+	listen 80 default_server;
 	server_name _;
 
 	# Serve ACME HTTP-01 challenge files directly instead of redirecting to a
