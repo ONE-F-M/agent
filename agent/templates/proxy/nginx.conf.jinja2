@@ -276,8 +276,14 @@ server {
 	listen 80;
 	server_name _;
 
+	# Serve ACME HTTP-01 challenge files directly instead of redirecting to a
+	# dedicated ssl.<domain> host (that pattern assumes a shared, centrally
+	# hosted ACME relay across many customer domains, which self-hosted
+	# single-tenant installs don't have). Must match Press Settings'
+	# webroot_directory so certbot's --webroot writes land where nginx reads.
 	location ^~ /.well-known/acme-challenge/ {
-		return 301 http://ssl.{{ domain }}$request_uri;
+		root /var/www/acme-webroot;
+		try_files $uri =404;
 	}
 	location / {
 		return 308 https://$host$request_uri;
