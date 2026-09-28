@@ -989,11 +989,8 @@ class Server(Base):
                     )
 
         # Stop NGINX Reload Manager if it's a proxy server
-        is_proxy_server = (
-            self.config.get("domain")
-            and self.config.get("name").startswith("n")
-            and not self.config.get("name").startswith("nat")
-        )
+        # (see _generate_supervisor_config for why `domain` is the signal)
+        is_proxy_server = bool(self.config.get("domain"))
         if is_proxy_server:
             self.execute(
                 "sudo supervisorctl stop agent:nginx_reload_manager",
@@ -1291,7 +1288,12 @@ class Server(Base):
             "sentry_dsn": self.config.get("sentry_dsn"),
             "is_standalone": self.config.get("standalone", False),
         }
-        if self.config.get("name").startswith("n") and not self.config.get("name").startswith("nat"):
+        # "name" prefix ("n1", "n2"...) only identifies proxy servers under
+        # Frappe Cloud's own SaaS naming convention; self-hosted/renamed
+        # servers (e.g. "hybrid-n-00001-...") don't match it even though they
+        # are proxies. `domain` is set in config.json only for proxy servers
+        # (see press ProxyServer._setup_agent), so it's the reliable signal.
+        if self.config.get("domain"):
             data["is_proxy_server"] = True
 
         if self.config.get("name", "").startswith("fs"):
